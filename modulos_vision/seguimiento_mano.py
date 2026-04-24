@@ -5,7 +5,7 @@ import numpy as np
 mp_hands = mp.solutions.hands
 detector_manos = mp_hands.Hands(
     model_complexity=1,
-    min_detection_confidence=0.2, 
+    min_detection_confidence=0.3, 
     min_tracking_confidence=0.3,  
     max_num_hands=2
 )

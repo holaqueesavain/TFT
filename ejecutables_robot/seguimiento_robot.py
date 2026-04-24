@@ -40,18 +40,18 @@ def cargar_limites_csv():
     
     return limites_cam_x, limites_cam_y, limites_cam_z, limites_rob_x, limites_rob_y
 
-L_CAM_X, L_CAM_Y, L_CAM_Z, L_ROB_X, L_ROB_Y = cargar_limites_csv()
+L_CAM_X, L_CAM_Y, L_CAM_Z, L_ROB_X, L_ROB_Y, = cargar_limites_csv()
 
-L_ROB_Z = [-0.05, 0.35] 
+L_ROB_Z = [-0.05, 0.40] 
 
 OFFSET_X = 0.00
 OFFSET_Y = 0.0
 OFFSET_Z = 0.10
 
 def cam2robot(cam_x, cam_y, cam_z):
-    rx = np.interp(cam_x, L_CAM_X, L_ROB_X) + OFFSET_X
+    rx = np.interp(cam_x, L_CAM_X, [L_ROB_X[1], L_ROB_X[0]]) + OFFSET_X
     ry = np.interp(cam_z, L_CAM_Z, L_ROB_Y) + OFFSET_Y
-    rz = np.interp(cam_y, L_CAM_Y, [L_ROB_Z[1], L_ROB_Z[0]]) + OFFSET_Z
+    rz = np.interp(cam_y, L_CAM_Y, L_ROB_Z) + OFFSET_Z
     
     return [float(rx), float(ry), float(rz)]
 
@@ -76,7 +76,12 @@ if __name__ == "__main__":
         sys.exit(1)
 
     cam_i = cv2.VideoCapture(1, cv2.CAP_DSHOW)
+    cam_i.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+    cam_i.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+    
     cam_d = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+    cam_d.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+    cam_d.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
     st_mano = st_robot = (0.0, 0.0, 0.0)
     last_pose_sent = pose_inicio
@@ -122,18 +127,15 @@ if __name__ == "__main__":
                 pose_obj = [rx, ry, rz] + rot_fija
                 
                 if primer_contacto:
-                    rtde_c.moveL(pose_obj, 0.1, 0.05)
-                    last_pose_sent = pose_obj
                     primer_contacto = False
-                    continue
 
-                pose_suave_xyz = limitar_paso(last_pose_sent[:3], pose_obj[:3], paso_max=0.015)
+                pose_suave_xyz = limitar_paso(last_pose_sent[:3], pose_obj[:3], paso_max=0.010)
                 pose_obj_final = list(pose_suave_xyz) + rot_fija
                 dist_mov = np.linalg.norm(np.array(pose_obj_final[:3]) - np.array(last_pose_sent[:3])) 
                 
                 if dist_mov > 0.0005: 
                     if rtde_c.getInverseKinematics(pose_obj_final):
-                        rtde_c.servoL(pose_obj_final, 0.5, 0.1, 0.05, 0.1, 300)
+                        rtde_c.servoL(pose_obj_final, 0.5, 0.1, 0.05, 0.15, 150)
                         last_pose_sent = pose_obj_final
                     else:
                         cv2.putText(fi, "FUERA DE RANGO", (20, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 165, 255), 2)
