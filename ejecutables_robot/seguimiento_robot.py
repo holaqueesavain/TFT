@@ -1,7 +1,7 @@
 import rtde_control, rtde_receive
 import cv2
 import numpy as np
-import csv, os, sys, time, datetime, glob
+import csv, os, sys, time, datetime, glob, xmlrpc.client
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.append(BASE_DIR)
@@ -16,11 +16,11 @@ ROBOT_IP = "169.254.129.110"
 def cargar_limites_csv():
     archivos = glob.glob(os.path.join(BASE_DIR, "output", "mapeo_*.csv"))
     if not archivos:
-        return [-0.30, 0.30], [-0.20, 0.20], [0.50, 1.50], [-0.390, 0.160], [-0.760, -0.265]
+        return [-0.30, 0.30], [-0.20, 0.20], [0.50, 1.50], [-0.390, 0.160], [-0.760, -0.265], [-0.260, 0.211]
     
     ultimo_archivo = max(archivos, key=os.path.getctime)
     
-    cam_x, cam_y, cam_z, rob_x, rob_y = [], [], [], [], []
+    cam_x, cam_y, cam_z, rob_x, rob_y, rob_z = [], [], [], [], [], []
     with open(ultimo_archivo, 'r') as f:
         reader = csv.reader(f, delimiter=';')
         next(reader)
@@ -28,6 +28,7 @@ def cargar_limites_csv():
             if len(fila) == 7 and fila[4] != "ERROR":
                 rob_x.append(float(fila[1]))
                 rob_y.append(float(fila[2]))
+                rob_z.append(float(fila[3]))
                 cam_x.append(float(fila[4]))
                 cam_y.append(float(fila[5]))
                 cam_z.append(float(fila[6]))
@@ -37,20 +38,17 @@ def cargar_limites_csv():
     limites_cam_z = [np.min(cam_z), np.max(cam_z)]
     limites_rob_x = [np.min(rob_x), np.max(rob_x)]
     limites_rob_y = [np.min(rob_y), np.max(rob_y)]
+    limites_rob_z = [np.min(rob_z), np.max(rob_z)]
     
-    return limites_cam_x, limites_cam_y, limites_cam_z, limites_rob_x, limites_rob_y
+    return limites_cam_x, limites_cam_y, limites_cam_z, limites_rob_x, limites_rob_y, limites_rob_z
 
-L_CAM_X, L_CAM_Y, L_CAM_Z, L_ROB_X, L_ROB_Y, = cargar_limites_csv()
+L_CAM_X, L_CAM_Y, L_CAM_Z, L_ROB_X, L_ROB_Y, L_ROB_Z = cargar_limites_csv()
 
-L_ROB_Z = [-0.05, 0.40] 
-
-OFFSET_X = 0.00
-OFFSET_Y = 0.0
-OFFSET_Z = 0.10
+OFFSET_Z = 0.01
 
 def cam2robot(cam_x, cam_y, cam_z):
-    rx = np.interp(cam_x, L_CAM_X, [L_ROB_X[1], L_ROB_X[0]]) + OFFSET_X
-    ry = np.interp(cam_z, L_CAM_Z, L_ROB_Y) + OFFSET_Y
+    rx = np.interp(cam_x, L_CAM_X, [L_ROB_X[1], L_ROB_X[0]])
+    ry = np.interp(cam_z, L_CAM_Z, L_ROB_Y)
     rz = np.interp(cam_y, L_CAM_Y, L_ROB_Z) + OFFSET_Z
     
     return [float(rx), float(ry), float(rz)]
@@ -62,11 +60,32 @@ def limitar_paso(actual, deseado, paso_max=0.015):
         return np.array(actual) + (vector / dist) * paso_max
     return deseado
 
+def abrir_pinza(gripper):
+    try:
+        # Usamos la conexión XML-RPC definitiva
+        gripper.rg_grip(0, 110.0, 40.0)
+        print("Pinza abierta")
+    except Exception as e:
+        print(f"Error al abrir pinza: {e}")
+
+def cerrar_pinza(gripper):
+    try:
+        # Usamos la conexión XML-RPC definitiva
+        gripper.rg_grip(0, 0.0, 40.0)
+        print("Pinza cerrada")
+    except Exception as e:
+        print(f"Error al cerrar pinza: {e}")
+
 if __name__ == "__main__":
     print("Iniciando conexion robot...")
     try:
         rtde_c = rtde_control.RTDEControlInterface(ROBOT_IP)
         rtde_r = rtde_receive.RTDEReceiveInterface(ROBOT_IP)
+        
+        # Inicializamos la conexión con la pinza via XML-RPC
+        print("Conectando con la pinza OnRobot...")
+        gripper = xmlrpc.client.ServerProxy(f"http://{ROBOT_IP}:41414/")
+        
         rot_fija = [3.140198214586112, 0.0, 0.0]
         pose_inicio = [-0.11557, -0.4964, L_ROB_Z[0]] + rot_fija
         
@@ -133,7 +152,7 @@ if __name__ == "__main__":
                 pose_obj_final = list(pose_suave_xyz) + rot_fija
                 dist_mov = np.linalg.norm(np.array(pose_obj_final[:3]) - np.array(last_pose_sent[:3])) 
                 
-                if dist_mov > 0.0005: 
+                if dist_mov > 0.008:  
                     if rtde_c.getInverseKinematics(pose_obj_final):
                         rtde_c.servoL(pose_obj_final, 0.5, 0.1, 0.05, 0.15, 150)
                         last_pose_sent = pose_obj_final
@@ -155,18 +174,22 @@ if __name__ == "__main__":
         tecla = cv2.waitKey(1) & 0xFF
         if tecla == 27:
             break
-        elif tecla == ord('c'):
+        elif tecla == ord('r'):
             print("Recoger Pelota")
             rtde_c.servoStop()
-            rtde_c.moveL([-0.10, -0.5, 0.1] + rot_fija, 0.1, 0.1)
-            rtde_c.moveL([-0.10, -0.5, -0.0] + rot_fija, 0.1, 0.1)
-            rtde_c.setStandardDigitalOut(0, True)
+            abrir_pinza(gripper)                                               
+            time.sleep(0.5)
+            # Coordenadas actualizadas: x=-0.27149, y=-0.76934, z=-0.37678
+            rtde_c.moveL([-0.267, -0.781, -0.397] + rot_fija, 0.1, 0.1)     
+            cerrar_pinza(gripper)                                              
             time.sleep(1)
-            rtde_c.moveL([-0.10, -0.5, 0.1] + rot_fija, 0.1, 0.1)
-            primer_contacto = True
+            # Subir después de recoger
+            pos_final = [-0.267, -0.781, 0.1] + rot_fija
+            rtde_c.moveL(pos_final, 0.1, 0.1)       
+            last_pose_sent = pos_final
         elif tecla == ord('s'):
             print("Soltar Pelota")
-            rtde_c.setStandardDigitalOut(0, False)
+            abrir_pinza(gripper)
             time.sleep(1)
 
     try:

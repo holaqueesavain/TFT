@@ -12,7 +12,7 @@ detector_manos = mp_hands.Hands(
 
 # Calibracion
 BASELINE = 0.093      
-FOCAL = 728.0
+FOCAL = 660.0
 CX = 320.0
 CY = 240.0
 
