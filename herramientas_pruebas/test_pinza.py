@@ -1,29 +1,29 @@
+"""
+Prueba de comunicación con la pinza OnRobot RG2.
+Se verifica el correcto funcionamiento de los comandos de apertura y cierre.
+"""
+
 import time
 import xmlrpc.client
 
-# IP del robot
 ROBOT_IP = "169.254.129.110"
 
-print("--- TEST DE PINZA ONROBOT (ORDEN: ID, W, F) ---")
-
 try:
-    print(f"Conectando al servidor XML-RPC en {ROBOT_IP}:41414...")
+    print(f"Conectando con el servidor del robot ({ROBOT_IP}:41414)...")
     gripper = xmlrpc.client.ServerProxy(f"http://{ROBOT_IP}:41414/")
     
-    # Verificamos conexión
     width = gripper.rg_get_width(0)
-    print(f"¡Conexión exitosa! Anchura actual: {width} mm")
+    print(f"Conexión OK. Anchura actual de la pinza: {width} mm")
 
-    print("\nIntentando con orden (ID: Int, Anchura: Float, Fuerza: Float)...")
-    # rg_grip(id_int, anchura_float, fuerza_float)
+    print("\nProbando cierre")
     gripper.rg_grip(0, 0.0, 40.0)
     time.sleep(4)
 
-    print("\nIntentando abrir pinza...")
+    print("\nProbando apertura")
     gripper.rg_grip(0, 110.0, 40.0)
     time.sleep(4)
 
 except Exception as e:
-    print(f"\n[ERROR] Fallo en la comunicación: {e}")
+    print(f"\nError en el test: {e}")
 
-print("\n--- TEST FINALIZADO ---")
+

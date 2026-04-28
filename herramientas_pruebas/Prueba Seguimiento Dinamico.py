@@ -1,9 +1,13 @@
+"""
+Prueba de seguimiento del robot con captura de datos.
+Se registran en un CSV las posiciones calculadas por visión y las reales del robot
+para analizar el error y el comportamiento del sistema.
+"""
 import rtde_control, rtde_receive
 import cv2
 import numpy as np
 import csv, os, sys, time, datetime
 
-# Configuración de rutas para encontrar modulos_vision y ejecutables_robot
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.append(BASE_DIR)
 
@@ -13,24 +17,17 @@ from ejecutables_robot.seguimiento_robot import cam2robot, ROBOT_IP, L_ROB_Z, li
 rot_fija = [3.140198214586112, 0.0064768660533132535, 0.0062702868250280284]
 
 def prueba_seguimiento_real():
-    print("\n" + "="*50)
-    print(">> TEST DE SEGUIMIENTO DINAMICO REAL")
-    print("="*50)
-    print("INSTRUCCIONES:")
-    print("1. El robot se movera para seguirte.")
-    print("2. Pulsa 'G' para empezar a grabar el movimiento.")
-    print("3. Pulsa 'G' otra vez para parar y generar el Excel.")
-    print("4. Pulsa 'ESC' para salir.")
-    print("="*50)
+    print("\n--- INICIANDO TEST DE RENDIMIENTO ---")
+    print("Controles: 'G' para grabar datos, 'ESC' para salir.")
 
     try:
         rtde_c = rtde_control.RTDEControlInterface(ROBOT_IP)
         rtde_r = rtde_receive.RTDEReceiveInterface(ROBOT_IP)
         pose_inicio = [-0.118, -0.513, L_ROB_Z[0]] + rot_fija
         rtde_c.moveL(pose_inicio, 0.1, 0.1)
-        print("OK: Robot conectado y en posicion de inicio.")
+        print("Robot listo.")
     except Exception as e:
-        print(f"Error de conexion robot: {e}")
+        print(f"Error de conexión: {e}")
         return
 
     cap_i = cv2.VideoCapture(1, cv2.CAP_DSHOW)
@@ -39,7 +36,6 @@ def prueba_seguimiento_real():
     st_mano = (0.0, 0.0, 0.0)
     last_pose_sent = pose_inicio
     primer_contacto = True
-    
     grabando = False
     datos_capturados = []
 
@@ -65,13 +61,11 @@ def prueba_seguimiento_real():
             xm, ym, zm = mano
             rx_raw, ry_raw, rz_raw = cam2robot(xm, ym, zm)
             
-            # Limites de seguridad
             rx = np.clip(rx_raw, np.min(L_ROB_X), np.max(L_ROB_X))
             ry = np.clip(ry_raw, np.min(L_ROB_Y), np.max(L_ROB_Y))
             rz = np.clip(rz_raw, L_ROB_Z[0], L_ROB_Z[1]) 
             pose_obj = [rx, ry, rz] + rot_fija
 
-            # Movimiento del robot (Igual que en el principal)
             if not (lm and mano_cerrada(lm.landmark) >= 3):
                 if primer_contacto:
                     rtde_c.moveL(pose_obj, 0.1, 0.05)
@@ -85,7 +79,6 @@ def prueba_seguimiento_real():
                             rtde_c.servoL(pose_obj_final, 0.5, 0.1, 0.05, 0.1, 300)
                             last_pose_sent = pose_obj_final
 
-            # LOGICA DE GRABACION
             if grabando:
                 actual_tcp = rtde_r.getActualTCPPose()
                 tiempo_actual = time.time() - tiempo_inicio
@@ -95,11 +88,11 @@ def prueba_seguimiento_real():
                     'Rob_Real_X': actual_tcp[0], 'Rob_Real_Y': actual_tcp[1], 'Rob_Real_Z': actual_tcp[2]
                 })
                 cv2.circle(fi, (30, 30), 10, (0, 0, 255), -1)
-                cv2.putText(fi, f"GRABANDO: {len(datos_capturados)}", (50, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+                cv2.putText(fi, f"GRABANDO: {len(datos_capturados)}", (50, 40), 0, 0.7, (0, 0, 255), 2)
             else:
-                cv2.putText(fi, "PULSA 'G' PARA GRABAR", (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
+                cv2.putText(fi, "PULSA 'G'", (20, 40), 0, 0.7, (0, 255, 255), 2)
 
-        cv2.imshow("TEST DINAMICO REAL", fi)
+        cv2.imshow("Test de Seguimiento Dinamico", fi)
         tecla = cv2.waitKey(1) & 0xFF
         if tecla == 27: break
         elif tecla == ord('g'):
@@ -107,10 +100,10 @@ def prueba_seguimiento_real():
                 grabando = True
                 datos_capturados = []
                 tiempo_inicio = time.time()
-                print(">> Grabacion iniciada...")
+                print("Grabación iniciada...")
             else:
                 grabando = False
-                print(f">> Grabacion finalizada. {len(datos_capturados)} muestras.")
+                print(f"Grabación terminada. {len(datos_capturados)} muestras.")
                 if datos_capturados:
                     nombre = f"datos_seg_real_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
                     ruta = os.path.join(BASE_DIR, "output", nombre)
@@ -118,7 +111,7 @@ def prueba_seguimiento_real():
                         writer = csv.DictWriter(f, fieldnames=datos_capturados[0].keys(), delimiter=';')
                         writer.writeheader()
                         writer.writerows(datos_capturados)
-                    print(f">> Archivo guardado: {ruta}")
+                    print(f"Archivo guardado: {ruta}")
 
     rtde_c.servoStop()
     rtde_c.moveL(pose_inicio, 0.1, 0.1)

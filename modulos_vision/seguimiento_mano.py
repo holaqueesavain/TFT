@@ -1,3 +1,8 @@
+"""
+Sistema de visión basado en MediaPipe y triangulación estéreo para la estimación de la posición 3D de la mano. 
+Incluye un filtrado temporal para reducir ruido y mejorar la estabilidad de la señal.
+"""
+
 import cv2
 import mediapipe as mp
 import numpy as np
@@ -5,12 +10,11 @@ import numpy as np
 mp_hands = mp.solutions.hands
 detector_manos = mp_hands.Hands(
     model_complexity=1,
-    min_detection_confidence=0.3, 
-    min_tracking_confidence=0.3,  
+    min_detection_confidence=0.6, 
+    min_tracking_confidence=0.6,  
     max_num_hands=2
 )
 
-# Calibracion
 BASELINE = 0.093      
 FOCAL = 660.0
 CX = 320.0
@@ -23,7 +27,7 @@ Q = np.float32([
     [0, 0, -1.0/BASELINE, 0]
 ])
 
-ALPHA = 0.40
+ALPHA = 0.15
 
 def mano_cerrada(landmarks):
     puntas = [8, 12, 16, 20]
@@ -86,7 +90,6 @@ if __name__ == "__main__":
     L_X, L_Z = [-2.0, 2.0], [0.0, 3.0]
     OFFSET_Y = 0.30
 
-    print("--- MOTOR DE VISIÓN V2 ---")
 
     while True:
         ret_i, frame_i = cam_izq.read()
@@ -117,14 +120,10 @@ if __name__ == "__main__":
             
         if robot_3d:
             xr, yr, zr = robot_3d
-            print(f"Robot Z: {zr * 100:.1f} cm")
             if mano_3d:
                 xm, ym, zm = mano_3d
                 error = (xm - xr, (ym - OFFSET_Y) - yr, zm - zr)
                 cv2.arrowedLine(frame_i, r_i, p_i, (0, 255, 255), 3)
-                cv2.putText(frame_i, f"Err X:{error[0] * 100:.2f} cm", (20,200), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0,255,255), 3)
-                cv2.putText(frame_i, f"Err Y:{error[1] * 100:.2f} cm", (20,240), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0,255,255), 3)
-                cv2.putText(frame_i, f"Err Z:{error[2] * 100:.2f} cm", (20,280), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0,255,255), 3)
 
         cv2.imshow("Vision - Camara Izquierda", frame_i)
         cv2.imshow("Vision - Camara Derecha", frame_d)

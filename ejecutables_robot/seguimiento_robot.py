@@ -1,3 +1,10 @@
+"""
+Control del robot UR5e mediante el seguimiento de la mano en tiempo real.
+El sistema utiliza visión estéreo para obtener la posición 3D de la mano,
+que posteriormente se transforma al sistema de referencia del robot para generar los movimientos. 
+Además, se incluye control por gestos para pausar el movimiento y funciones para el manejo de la pinza.
+"""
+
 import rtde_control, rtde_receive
 import cv2
 import numpy as np
@@ -11,7 +18,6 @@ from modulos_vision.seguimiento_mano import (
 )
 
 ROBOT_IP = "169.254.129.110"
-#ROBOT_IP = "192.168.253.131"
 
 def cargar_limites_csv():
     archivos = glob.glob(os.path.join(BASE_DIR, "output", "mapeo_*.csv"))
@@ -44,7 +50,7 @@ def cargar_limites_csv():
 
 L_CAM_X, L_CAM_Y, L_CAM_Z, L_ROB_X, L_ROB_Y, L_ROB_Z = cargar_limites_csv()
 
-OFFSET_Z = 0.01
+OFFSET_Z = 0.11
 
 def cam2robot(cam_x, cam_y, cam_z):
     rx = np.interp(cam_x, L_CAM_X, [L_ROB_X[1], L_ROB_X[0]])
@@ -53,7 +59,7 @@ def cam2robot(cam_x, cam_y, cam_z):
     
     return [float(rx), float(ry), float(rz)]
 
-def limitar_paso(actual, deseado, paso_max=0.015):
+def limitar_paso(actual, deseado, paso_max=0.008):
     vector = np.array(deseado) - np.array(actual)
     dist = np.linalg.norm(vector)
     if dist > paso_max:
@@ -62,7 +68,6 @@ def limitar_paso(actual, deseado, paso_max=0.015):
 
 def abrir_pinza(gripper):
     try:
-        # Usamos la conexión XML-RPC definitiva
         gripper.rg_grip(0, 110.0, 40.0)
         print("Pinza abierta")
     except Exception as e:
@@ -70,19 +75,17 @@ def abrir_pinza(gripper):
 
 def cerrar_pinza(gripper):
     try:
-        # Usamos la conexión XML-RPC definitiva
         gripper.rg_grip(0, 0.0, 40.0)
         print("Pinza cerrada")
     except Exception as e:
         print(f"Error al cerrar pinza: {e}")
 
 if __name__ == "__main__":
-    print("Iniciando conexion robot...")
+    print("Iniciando conexión con el sistema robótico...")
     try:
         rtde_c = rtde_control.RTDEControlInterface(ROBOT_IP)
         rtde_r = rtde_receive.RTDEReceiveInterface(ROBOT_IP)
         
-        # Inicializamos la conexión con la pinza via XML-RPC
         print("Conectando con la pinza OnRobot...")
         gripper = xmlrpc.client.ServerProxy(f"http://{ROBOT_IP}:41414/")
         
@@ -91,7 +94,7 @@ if __name__ == "__main__":
         
         rtde_c.moveL(pose_inicio, 0.1, 0.1)
     except Exception as e:
-        print(f"Error de conexion: {e}")
+        print(f"Error de conexión: {e}")
         sys.exit(1)
 
     cam_i = cv2.VideoCapture(1, cv2.CAP_DSHOW)
@@ -148,7 +151,7 @@ if __name__ == "__main__":
                 if primer_contacto:
                     primer_contacto = False
 
-                pose_suave_xyz = limitar_paso(last_pose_sent[:3], pose_obj[:3], paso_max=0.010)
+                pose_suave_xyz = limitar_paso(last_pose_sent[:3], pose_obj[:3], paso_max=0.008)
                 pose_obj_final = list(pose_suave_xyz) + rot_fija
                 dist_mov = np.linalg.norm(np.array(pose_obj_final[:3]) - np.array(last_pose_sent[:3])) 
                 
@@ -175,20 +178,18 @@ if __name__ == "__main__":
         if tecla == 27:
             break
         elif tecla == ord('r'):
-            print("Recoger Pelota")
+            print("Ejecutando rutina: Recoger Pelota")
             rtde_c.servoStop()
             abrir_pinza(gripper)                                               
             time.sleep(0.5)
-            # Coordenadas actualizadas: x=-0.27149, y=-0.76934, z=-0.37678
             rtde_c.moveL([-0.267, -0.781, -0.397] + rot_fija, 0.1, 0.1)     
             cerrar_pinza(gripper)                                              
             time.sleep(1)
-            # Subir después de recoger
             pos_final = [-0.267, -0.781, 0.1] + rot_fija
             rtde_c.moveL(pos_final, 0.1, 0.1)       
             last_pose_sent = pos_final
         elif tecla == ord('s'):
-            print("Soltar Pelota")
+            print("Ejecutando rutina: Soltar Pelota")
             abrir_pinza(gripper)
             time.sleep(1)
 
