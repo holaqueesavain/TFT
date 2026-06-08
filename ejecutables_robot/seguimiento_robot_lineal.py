@@ -49,7 +49,7 @@ OFFSET_Z = 0.05
 def cam2robot(cam_x, cam_y, cam_z):
     rx = np.interp(cam_x, L_CAM_X, [L_ROB_X[1], L_ROB_X[0]])
     ry = np.interp(cam_z, L_CAM_Z, L_ROB_Y)
-    rz = np.interp(cam_y, L_CAM_Y, L_ROB_Z)
+    rz = np.interp(cam_y, L_CAM_Y, L_ROB_Z) + OFFSET_Z
     
     return [float(rx), float(ry), float(rz)]
 
