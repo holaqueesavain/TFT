@@ -8,15 +8,21 @@ import mediapipe as mp
 import numpy as np
 
 mp_hands = mp.solutions.hands
-detector_manos = mp_hands.Hands(
+detector_manos_i = mp_hands.Hands(
     model_complexity=1,
-    min_detection_confidence=0.6, 
-    min_tracking_confidence=0.6,  
-    max_num_hands=2
+    min_detection_confidence=0.4, 
+    min_tracking_confidence=0.4,  
+    max_num_hands=1
+)
+detector_manos_d = mp_hands.Hands(
+    model_complexity=1,
+    min_detection_confidence=0.4, 
+    min_tracking_confidence=0.4,  
+    max_num_hands=1
 )
 
 BASELINE = 0.093      
-FOCAL = 660.0
+FOCAL = 650.0
 CX = 320.0
 CY = 240.0
 
@@ -27,7 +33,7 @@ Q = np.float32([
     [0, 0, -1.0/BASELINE, 0]
 ])
 
-ALPHA = 0.15
+ALPHA = 0.40
 
 def mano_cerrada(landmarks):
     puntas = [8, 12, 16, 20]
@@ -97,11 +103,11 @@ if __name__ == "__main__":
         if not ret_i or not ret_d: break
 
         frame_i, frame_d = cv2.flip(frame_i, 1), cv2.flip(frame_d, 1)
-        res_i = detector_manos.process(cv2.cvtColor(frame_i, cv2.COLOR_BGR2RGB))
-        res_d = detector_manos.process(cv2.cvtColor(frame_d, cv2.COLOR_BGR2RGB))
+        res_i = detector_manos_i.process(cv2.cvtColor(frame_i, cv2.COLOR_BGR2RGB))
+        res_d = detector_manos_d.process(cv2.cvtColor(frame_d, cv2.COLOR_BGR2RGB))
 
         p_i = obtener_centro_mano(res_i.multi_hand_landmarks[0].landmark) if res_i.multi_hand_landmarks else None
-        p_d = obtener_centro_mano(res_d.multi_hand_landmarks[0].landmark) if res_d.multi_hand_landmarks and len(res_d.multi_hand_landmarks)==1 else None
+        p_d = obtener_centro_mano(res_d.multi_hand_landmarks[0].landmark) if res_d.multi_hand_landmarks else None
         r_i = detectar_punta_verde(frame_i, hand_landmarks=res_i.multi_hand_landmarks[0] if res_i.multi_hand_landmarks else None)
         r_d = detectar_punta_verde(frame_d)
 
@@ -110,6 +116,8 @@ if __name__ == "__main__":
 
         if p_i: cv2.circle(frame_i, p_i, 5, (255,0,0), -1)
         if r_i: cv2.circle(frame_i, r_i, 6, (0,255,0), -1)
+        if p_d: cv2.circle(frame_d, p_d, 5, (255,0,0), -1)
+        if r_d: cv2.circle(frame_d, r_d, 6, (0,255,0), -1)
 
         if mano_3d:
             xm, ym, zm = mano_3d
@@ -120,6 +128,7 @@ if __name__ == "__main__":
             
         if robot_3d:
             xr, yr, zr = robot_3d
+            print(f"Distancia Punta Verde (Robot) -> Z: {zr:.3f} m")
             if mano_3d:
                 xm, ym, zm = mano_3d
                 error = (xm - xr, (ym - OFFSET_Y) - yr, zm - zr)

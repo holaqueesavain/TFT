@@ -1,28 +1,22 @@
-"""
-Control del robot UR5e mediante el seguimiento de la mano en tiempo real.
-El sistema utiliza visión estéreo para obtener la posición 3D de la mano,
-que posteriormente se transforma al sistema de referencia del robot para generar los movimientos. 
-Además, se incluye control por gestos para pausar el movimiento y funciones para el manejo de la pinza.
-"""
-
 import rtde_control, rtde_receive
 import cv2
 import numpy as np
-import csv, os, sys, time, datetime, glob, xmlrpc.client
+import csv, os, sys, time, datetime, glob
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.append(BASE_DIR)
 from modulos_vision.seguimiento_mano import (
-    detector_manos, obtener_centro_mano,
+    detector_manos_i, detector_manos_d, obtener_centro_mano,
     detectar_punta_verde, mano_cerrada, triangular
 )
 
 ROBOT_IP = "169.254.129.110"
+#ROBOT_IP = "192.168.253.131"
 
 def cargar_limites_csv():
     archivos = glob.glob(os.path.join(BASE_DIR, "output", "mapeo_*.csv"))
     if not archivos:
-        return [-0.30, 0.30], [-0.20, 0.20], [0.50, 1.50], [-0.390, 0.160], [-0.760, -0.265], [-0.260, 0.211]
+        return [-0.30, 0.30], [-0.20, 0.20], [0.50, 1.50], [-0.390, 0.160], [-0.760, -0.265]
     
     ultimo_archivo = max(archivos, key=os.path.getctime)
     
@@ -50,12 +44,12 @@ def cargar_limites_csv():
 
 L_CAM_X, L_CAM_Y, L_CAM_Z, L_ROB_X, L_ROB_Y, L_ROB_Z = cargar_limites_csv()
 
-OFFSET_Z = 0.11
+OFFSET_Z = 0.05
 
 def cam2robot(cam_x, cam_y, cam_z):
     rx = np.interp(cam_x, L_CAM_X, [L_ROB_X[1], L_ROB_X[0]])
     ry = np.interp(cam_z, L_CAM_Z, L_ROB_Y)
-    rz = np.interp(cam_y, L_CAM_Y, L_ROB_Z) + OFFSET_Z
+    rz = np.interp(cam_y, L_CAM_Y, L_ROB_Z)
     
     return [float(rx), float(ry), float(rz)]
 
@@ -66,44 +60,21 @@ def limitar_paso(actual, deseado, paso_max=0.008):
         return np.array(actual) + (vector / dist) * paso_max
     return deseado
 
-def abrir_pinza(gripper):
-    try:
-        gripper.rg_grip(0, 110.0, 40.0)
-        print("Pinza abierta")
-    except Exception as e:
-        print(f"Error al abrir pinza: {e}")
-
-def cerrar_pinza(gripper):
-    try:
-        gripper.rg_grip(0, 0.0, 40.0)
-        print("Pinza cerrada")
-    except Exception as e:
-        print(f"Error al cerrar pinza: {e}")
-
 if __name__ == "__main__":
-    print("Iniciando conexión con el sistema robótico...")
+    print("Iniciando conexion robot...")
     try:
         rtde_c = rtde_control.RTDEControlInterface(ROBOT_IP)
         rtde_r = rtde_receive.RTDEReceiveInterface(ROBOT_IP)
-        
-        print("Conectando con la pinza OnRobot...")
-        gripper = xmlrpc.client.ServerProxy(f"http://{ROBOT_IP}:41414/")
-        
         rot_fija = [3.140198214586112, 0.0, 0.0]
         pose_inicio = [-0.11557, -0.4964, L_ROB_Z[0]] + rot_fija
         
         rtde_c.moveL(pose_inicio, 0.1, 0.1)
     except Exception as e:
-        print(f"Error de conexión: {e}")
+        print(f"Error de conexion: {e}")
         sys.exit(1)
 
     cam_i = cv2.VideoCapture(1, cv2.CAP_DSHOW)
-    cam_i.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-    cam_i.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-    
     cam_d = cv2.VideoCapture(0, cv2.CAP_DSHOW)
-    cam_d.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-    cam_d.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
     st_mano = st_robot = (0.0, 0.0, 0.0)
     last_pose_sent = pose_inicio
@@ -116,14 +87,15 @@ if __name__ == "__main__":
         
         fi, fd = cv2.flip(fi, 1), cv2.flip(fd, 1)
 
-        res_i = detector_manos.process(cv2.cvtColor(fi, cv2.COLOR_BGR2RGB))
-        res_d = detector_manos.process(cv2.cvtColor(fd, cv2.COLOR_BGR2RGB))
+        res_i = detector_manos_i.process(cv2.cvtColor(fi, cv2.COLOR_BGR2RGB))
+        res_d = detector_manos_d.process(cv2.cvtColor(fd, cv2.COLOR_BGR2RGB))
         
         lm = p_i = p_d = None
         if res_i.multi_hand_landmarks:
             lm = res_i.multi_hand_landmarks[0]
             p_i = obtener_centro_mano(lm.landmark)
             cv2.circle(fi, p_i, 8, (255, 0, 0), -1)
+            
         if res_d.multi_hand_landmarks:
             p_d = obtener_centro_mano(res_d.multi_hand_landmarks[0].landmark)
             
@@ -148,16 +120,16 @@ if __name__ == "__main__":
 
                 pose_obj = [rx, ry, rz] + rot_fija
                 
-                if primer_contacto:
+                if primer_contacto: 
                     primer_contacto = False
 
-                pose_suave_xyz = limitar_paso(last_pose_sent[:3], pose_obj[:3], paso_max=0.008)
+                pose_suave_xyz = limitar_paso(last_pose_sent[:3], pose_obj[:3], paso_max=0.015)
                 pose_obj_final = list(pose_suave_xyz) + rot_fija
                 dist_mov = np.linalg.norm(np.array(pose_obj_final[:3]) - np.array(last_pose_sent[:3])) 
                 
-                if dist_mov > 0.008:  
+                if dist_mov > 0.0005: 
                     if rtde_c.getInverseKinematics(pose_obj_final):
-                        rtde_c.servoL(pose_obj_final, 0.5, 0.1, 0.05, 0.15, 150)
+                        rtde_c.servoL(pose_obj_final, 0.5, 0.1, 0.05, 0.1, 300)
                         last_pose_sent = pose_obj_final
                     else:
                         cv2.putText(fi, "FUERA DE RANGO", (20, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 165, 255), 2)
@@ -178,19 +150,16 @@ if __name__ == "__main__":
         if tecla == 27:
             break
         elif tecla == ord('r'):
-            print("Ejecutando rutina: Recoger Pelota")
+            print("Recoger Pelota")
             rtde_c.servoStop()
-            abrir_pinza(gripper)                                               
-            time.sleep(0.5)
-            rtde_c.moveL([-0.267, -0.781, -0.397] + rot_fija, 0.1, 0.1)     
-            cerrar_pinza(gripper)                                              
+            rtde_c.moveL([-0.2456, -0.821, -0.385] + rot_fija, 0.1, 0.1)
+            rtde_c.setStandardDigitalOut(0, True)
             time.sleep(1)
-            pos_final = [-0.267, -0.781, 0.1] + rot_fija
-            rtde_c.moveL(pos_final, 0.1, 0.1)       
-            last_pose_sent = pos_final
+            rtde_c.moveL([-0.10, -0.5, 0.1] + rot_fija, 0.1, 0.1)
+            primer_contacto = True
         elif tecla == ord('s'):
-            print("Ejecutando rutina: Soltar Pelota")
-            abrir_pinza(gripper)
+            print("Soltar Pelota")
+            rtde_c.setStandardDigitalOut(0, False)
             time.sleep(1)
 
     try:
