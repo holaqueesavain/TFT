@@ -1,7 +1,7 @@
 """
-Control del robot UR5e mediante seguimiento de mano en tiempo real.
-Usa una Matriz de Transformación Homogénea sobre los puntos de calibración para convertir
-las coordenadas de la cámara al sistema de referencia del robot.
+Control en tiempo real del brazo robótico UR5e. Calcula la posición del 
+robot utilizando una Matriz de Transformación Homogénea, generando 
+un mapeo que filtra los posibles errores de estimación visual.
 """
 
 import rtde_control, rtde_receive
@@ -75,7 +75,7 @@ def cam2robot(cam_x, cam_y, cam_z):
 
     rx_raw = np.clip(vector_rob[0], LIMITE_ROB_X[0], LIMITE_ROB_X[1])
     ry = np.clip(vector_rob[1], LIMITE_ROB_Y[0], LIMITE_ROB_Y[1])
-    rz = np.clip(vector_rob[2], LIMITE_ROB_Z[0], LIMITE_ROB_Z[1])
+    rz = np.clip(vector_rob[2] + OFFSET_Z, LIMITE_ROB_Z[0], LIMITE_ROB_Z[1])
     rx = LIMITE_ROB_X[0] + LIMITE_ROB_X[1] - rx_raw
     return [float(rx), float(ry), float(rz)]
 
@@ -140,6 +140,7 @@ if __name__ == "__main__":
 
                 pose_suave_xyz = limitar_paso(last_pose_sent[:3], pose_obj[:3], paso_max=0.008)
                 pose_obj_final = list(pose_suave_xyz) + rot_fija
+                
                 dist_mov = np.linalg.norm(np.array(pose_obj_final[:3]) - np.array(last_pose_sent[:3])) 
                 
                 if dist_mov > 0.0005: 

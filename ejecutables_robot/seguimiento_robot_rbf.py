@@ -1,7 +1,6 @@
 """
-Control del robot UR5e mediante seguimiento de mano en tiempo real.
-Usa un modelo RBF entrenado sobre el grid de calibración para estimar
-la posición del robot a partir de las coordenadas de la cámara.
+Control en tiempo real del brazo robótico UR5e. Emplea una red de Funciones de Base Radial (RBF) 
+para estimar la posición del robot. 
 """
 
 import rtde_control, rtde_receive
@@ -51,7 +50,7 @@ OFFSET_Z = 0.05
 def cam2robot(cam_x, cam_y, cam_z):
     rx_raw = modelo_x(cam_x, cam_y, cam_z)
     ry = modelo_y(cam_x, cam_y, cam_z)
-    rz = modelo_z(cam_x, cam_y, cam_z)
+    rz = modelo_z(cam_x, cam_y, cam_z) + OFFSET_Z
     rx = L_ROB_X[0] + L_ROB_X[1] - rx_raw
     return [float(rx), float(ry), float(rz)]
 
@@ -111,12 +110,15 @@ if __name__ == "__main__":
                 rz = np.clip(rz_raw, -0.25, 0.30)
 
                 pose_obj = [rx, ry, rz] + rot_fija
-                if primer_contacto: primer_contacto = False
+                
+                if primer_contacto:
+                    primer_contacto = False
 
-                distancia = np.linalg.norm(np.array(pose_obj[:3]) - np.array(last_pose[:3]))
-                if distancia > 0.003:
-                    pose_suave = limitar_paso(last_pose[:3], pose_obj[:3], paso_max=0.008)
-                    pose_final = list(pose_suave) + rot_fija
+                pose_suave = limitar_paso(last_pose[:3], pose_obj[:3], paso_max=0.008)
+                pose_final = list(pose_suave) + rot_fija
+                
+                distancia = np.linalg.norm(np.array(pose_final[:3]) - np.array(last_pose[:3]))
+                if distancia > 0.0005:
                     if rtde_c.getInverseKinematics(pose_final):
                         rtde_c.servoL(pose_final, 0.5, 0.1, 0.05, 0.15, 150)
                         last_pose = pose_final

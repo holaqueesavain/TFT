@@ -1,3 +1,8 @@
+"""
+Control en tiempo real del brazo robótico UR5e.Convierte las coordenadas
+espaciales de la cámara al sistema del robot mediante una interpolación 
+lineal independiente para cada eje, basada en la calibración.
+"""
 import rtde_control, rtde_receive
 import cv2
 import numpy as np
@@ -102,7 +107,7 @@ if __name__ == "__main__":
         r_i = detectar_punta_verde(fi, hand_landmarks=lm)
         r_d = detectar_punta_verde(fd)
 
-        mano, st_mano = triangular(p_i, p_d, 200, st_mano)
+        mano, st_mano = triangular(p_i, p_d, 40, st_mano)
         robot, st_robot = triangular(r_i, r_d, 300, st_robot)
 
         if mano:
@@ -123,8 +128,9 @@ if __name__ == "__main__":
                 if primer_contacto: 
                     primer_contacto = False
 
-                pose_suave_xyz = limitar_paso(last_pose_sent[:3], pose_obj[:3], paso_max=0.015)
+                pose_suave_xyz = limitar_paso(last_pose_sent[:3], pose_obj[:3], paso_max=0.008)
                 pose_obj_final = list(pose_suave_xyz) + rot_fija
+                
                 dist_mov = np.linalg.norm(np.array(pose_obj_final[:3]) - np.array(last_pose_sent[:3])) 
                 
                 if dist_mov > 0.0005: 
