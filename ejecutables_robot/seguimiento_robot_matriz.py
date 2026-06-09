@@ -67,19 +67,16 @@ def calcular_matriz_transformacion():
 
 MATRIZ_TRANSFORMACION = calcular_matriz_transformacion()
 
-OFFSET_Z = 0.02
+OFFSET_Z = 0.05
 
 def cam2robot(cam_x, cam_y, cam_z):
     vector_cam = np.array([cam_x, cam_y, cam_z, 1.0])
     vector_rob = MATRIZ_TRANSFORMACION @ vector_cam
 
-    rx = np.clip(vector_rob[0], LIMITE_ROB_X[0], LIMITE_ROB_X[1])
+    rx_raw = np.clip(vector_rob[0], LIMITE_ROB_X[0], LIMITE_ROB_X[1])
     ry = np.clip(vector_rob[1], LIMITE_ROB_Y[0], LIMITE_ROB_Y[1])
-    rz_raw = np.clip(vector_rob[2] + OFFSET_Z, LIMITE_ROB_Z[0], LIMITE_ROB_Z[1])
-    
-    # Inversión de Z solicitada (igual que en RBF):
-    rz = LIMITE_ROB_Z[0] + LIMITE_ROB_Z[1] - rz_raw
-    
+    rz = np.clip(vector_rob[2], LIMITE_ROB_Z[0], LIMITE_ROB_Z[1])
+    rx = LIMITE_ROB_X[0] + LIMITE_ROB_X[1] - rx_raw
     return [float(rx), float(ry), float(rz)]
 
 if __name__ == "__main__":

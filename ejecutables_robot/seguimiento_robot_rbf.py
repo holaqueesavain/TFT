@@ -46,16 +46,13 @@ L_ROB_X = [np.min(RX), np.max(RX)]
 L_ROB_Y = [np.min(RY), np.max(RY)]
 L_ROB_Z = [np.min(RZ), np.max(RZ)]
 
-OFFSET_Z = 0.02
+OFFSET_Z = 0.05
 
 def cam2robot(cam_x, cam_y, cam_z):
-    rx = modelo_x(cam_x, cam_y, cam_z)
+    rx_raw = modelo_x(cam_x, cam_y, cam_z)
     ry = modelo_y(cam_x, cam_y, cam_z)
-    rz_raw = modelo_z(cam_x, cam_y, cam_z) + OFFSET_Z
-    
-
-    rz = L_ROB_Z[0] + L_ROB_Z[1] - rz_raw
-    
+    rz = modelo_z(cam_x, cam_y, cam_z)
+    rx = L_ROB_X[0] + L_ROB_X[1] - rx_raw
     return [float(rx), float(ry), float(rz)]
 
 if __name__ == "__main__":
