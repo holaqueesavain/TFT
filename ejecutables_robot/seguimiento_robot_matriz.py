@@ -4,10 +4,10 @@ robot utilizando una Matriz de Transformación Homogénea, generando
 un mapeo que filtra los posibles errores de estimación visual.
 """
 
-import rtde_control, rtde_receive
+import rtde_control, rtde_receive, rtde_io
 import cv2
 import numpy as np
-import csv, os, sys, time, glob
+import csv, os, sys, time, glob, xmlrpc.client
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.append(BASE_DIR)
@@ -84,6 +84,8 @@ if __name__ == "__main__":
     try:
         rtde_c = rtde_control.RTDEControlInterface(ROBOT_IP)
         rtde_r = rtde_receive.RTDEReceiveInterface(ROBOT_IP)
+        rtde_io_interface = rtde_io.RTDEIOInterface(ROBOT_IP)
+        gripper = xmlrpc.client.ServerProxy(f"http://{ROBOT_IP}:41414/")
         rot_fija = [3.140198214586112, 0.0, 0.0]
         pose_inicio = [-0.11557, -0.4964, LIMITE_ROB_Z[0] + 0.1] + rot_fija
         
@@ -165,17 +167,19 @@ if __name__ == "__main__":
         tecla = cv2.waitKey(1) & 0xFF
         if tecla == 27:
             break
-        elif tecla == ord('c'):
+        elif tecla == ord('r'):
             print("Recoger Pelota")
             rtde_c.servoStop()
-            rtde_c.moveL([-0.2456, -0.821, -0.385] + rot_fija, 0.1, 0.1)
-            rtde_c.setStandardDigitalOut(0, True)
+            gripper.rg_grip(0, 110.0, 40.0)
+            time.sleep(0.5)
+            rtde_c.moveL([-0.2456, -0.821, -0.370] + rot_fija, 0.1, 0.1)
+            gripper.rg_grip(0, 0.0, 40.0)
             time.sleep(1)
             rtde_c.moveL([-0.10, -0.5, 0.1] + rot_fija, 0.1, 0.1)
             primer_contacto = True
         elif tecla == ord('s'):
             print("Soltar Pelota")
-            rtde_c.setStandardDigitalOut(0, False)
+            gripper.rg_grip(0, 110.0, 40.0)
             time.sleep(1)
 
     try:
