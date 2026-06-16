@@ -1,7 +1,6 @@
 """
-Control en tiempo real del brazo robótico UR5e. Calcula la posición del 
-robot utilizando una Matriz de Transformación Homogénea, generando 
-un mapeo que filtra los posibles errores de estimación visual.
+Control teleoperado del brazo robótico UR5e basado en visión artificial.
+Utiliza una matriz homogénea para relacionar las coordenadas obtenidas por la cámara con la posición real del robot.
 """
 
 import rtde_control, rtde_receive, rtde_io
@@ -69,13 +68,24 @@ MATRIZ_TRANSFORMACION = calcular_matriz_transformacion()
 
 OFFSET_Z = 0.05
 
+MIN_Z_RAW = LIMITE_ROB_Z[0]
+MAX_Z_RAW = LIMITE_ROB_Z[1]
+
 def cam2robot(cam_x, cam_y, cam_z):
+    global MIN_Z_RAW, MAX_Z_RAW
     vector_cam = np.array([cam_x, cam_y, cam_z, 1.0])
     vector_rob = MATRIZ_TRANSFORMACION @ vector_cam
 
     rx_raw = np.clip(vector_rob[0], LIMITE_ROB_X[0], LIMITE_ROB_X[1])
     ry = np.clip(vector_rob[1], LIMITE_ROB_Y[0], LIMITE_ROB_Y[1])
-    rz = np.clip(vector_rob[2] + OFFSET_Z, LIMITE_ROB_Z[0], LIMITE_ROB_Z[1])
+    
+    rz_pred = vector_rob[2]
+    if rz_pred < MIN_Z_RAW: MIN_Z_RAW = rz_pred
+    if rz_pred > MAX_Z_RAW: MAX_Z_RAW = rz_pred
+    
+    rz_mapped = np.interp(rz_pred, [MIN_Z_RAW, MAX_Z_RAW], LIMITE_ROB_Z)
+    
+    rz = np.clip(rz_mapped + OFFSET_Z, LIMITE_ROB_Z[0], LIMITE_ROB_Z[1])
     rx = LIMITE_ROB_X[0] + LIMITE_ROB_X[1] - rx_raw
     return [float(rx), float(ry), float(rz)]
 

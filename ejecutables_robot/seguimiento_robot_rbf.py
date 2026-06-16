@@ -1,6 +1,7 @@
 """
-Control en tiempo real del brazo robótico UR5e. Emplea una red de Funciones de Base Radial (RBF) 
-para estimar la posición del robot. 
+Control teleoperado del brazo robótico UR5e basado en visión artificial.
+ Utiliza un modelo basado en Funciones de Base Radial (RBF) para predecir la posición del robot a partir de las coordenadas de la mano.
+
 """
 
 import rtde_control, rtde_receive, rtde_io
@@ -47,10 +48,21 @@ L_ROB_Z = [np.min(RZ), np.max(RZ)]
 
 OFFSET_Z = 0.05
 
+MIN_Z_RAW = -0.25
+MAX_Z_RAW = 0.30
+
 def cam2robot(cam_x, cam_y, cam_z):
+    global MIN_Z_RAW, MAX_Z_RAW
     rx_raw = modelo_x(cam_x, cam_y, cam_z)
     ry = modelo_y(cam_x, cam_y, cam_z)
-    rz = modelo_z(cam_x, cam_y, cam_z) + OFFSET_Z
+    rz_pred = modelo_z(cam_x, cam_y, cam_z)
+    
+    if rz_pred < MIN_Z_RAW: MIN_Z_RAW = rz_pred
+    if rz_pred > MAX_Z_RAW: MAX_Z_RAW = rz_pred
+    
+    rz_mapped = np.interp(rz_pred, [MIN_Z_RAW, MAX_Z_RAW], [-0.25, 0.30])
+    
+    rz = np.clip(rz_mapped + OFFSET_Z, -0.25, 0.30)
     rx = L_ROB_X[0] + L_ROB_X[1] - rx_raw
     return [float(rx), float(ry), float(rz)]
 

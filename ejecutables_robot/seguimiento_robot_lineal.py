@@ -1,7 +1,6 @@
 """
-Control en tiempo real del brazo robótico UR5e.Convierte las coordenadas
-espaciales de la cámara al sistema del robot mediante una interpolación 
-lineal independiente para cada eje, basada en la calibración.
+Control teleoperado del brazo robótico UR5e basado en visión artificial. 
+Aplica una interpolación lineal por cada eje para relacionar las coordenadas de la mano con el espacio de trabajo del robot.
 """
 import rtde_control, rtde_receive, rtde_io
 import cv2
@@ -52,6 +51,9 @@ L_CAM_X, L_CAM_Y, L_CAM_Z, L_ROB_X, L_ROB_Y, L_ROB_Z = cargar_limites_csv()
 OFFSET_Z = 0.05
 
 def cam2robot(cam_x, cam_y, cam_z):
+    if cam_y < L_CAM_Y[0]: L_CAM_Y[0] = cam_y
+    if cam_y > L_CAM_Y[1]: L_CAM_Y[1] = cam_y
+
     rx = np.interp(cam_x, L_CAM_X, [L_ROB_X[1], L_ROB_X[0]]) 
     ry = np.interp(cam_z, L_CAM_Z, L_ROB_Y) 
     rz = np.interp(cam_y, L_CAM_Y, L_ROB_Z) + OFFSET_Z
@@ -123,7 +125,7 @@ if __name__ == "__main__":
                 
                 rx = np.clip(rx_raw, np.min(L_ROB_X), np.max(L_ROB_X))
                 ry = np.clip(ry_raw, np.min(L_ROB_Y), np.max(L_ROB_Y))
-                rz = np.clip(rz_raw, L_ROB_Z[0], L_ROB_Z[1]) 
+                rz = np.clip(rz_raw, L_ROB_Z[0], L_ROB_Z[1])
 
                 pose_obj = [rx, ry, rz] + rot_fija
                 
