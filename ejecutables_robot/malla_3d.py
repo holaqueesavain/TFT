@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
-df = pd.read_csv('output/mapeo_165725.csv', sep=';')
+df = pd.read_csv('output/mapeo_123158.csv', sep=';')
 x, y, z = df['Robot_X'].values, df['Robot_Y'].values, df['Robot_Z'].values
 
 fig = plt.figure(figsize=(9, 8))
