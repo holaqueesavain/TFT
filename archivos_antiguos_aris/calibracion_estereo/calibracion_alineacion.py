@@ -1,6 +1,6 @@
 """
 Herramienta para alinear físicamente las cámaras. Superpone la imagen 
-izquierda (verde) y derecha (roja) para ajustar el ángulo y el foco.
+izquierda  y derecha  para ajustar el ángulo y el foco.
 """
 
 import cv2
