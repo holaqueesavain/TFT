@@ -1,6 +1,6 @@
 """
 Ajuste de los parámetros SGBM y la matriz Q para la profundidad. 
-Sirve para hallar el valor 'f' (focal) y el 'B' (baseline) en metros 
+Sirve para hallar el valor focal y el baseline en metros 
 para que la distancia Z sea lo más real posible.
 """
 
